@@ -28,7 +28,35 @@ def scrape_year(year):
             numbers = [int(s.text.strip()) for s in spans if s.text and s.text.strip().isdigit()]
             main_numbers = numbers[:5]
             euro_numbers = numbers[5:7]
-            results.append([date_text] + main_numbers + euro_numbers)
+
+            # Jackpot und Winners: versuchen aus td[6] und td[7] zu lesen.
+            # Fallback: leere Strings, falls nicht vorhanden.
+            jackpot_text = ""
+            winners_text = ""
+            try:
+                jt = row.xpath('./td[5]//text()')
+                jackpot_text = " ".join([t.strip() for t in jt if t and t.strip()]).strip()
+            except Exception:
+                jackpot_text = ""
+            try:
+                wt = row.xpath('./td[6]//text()')
+                winners_text = " ".join([t.strip() for t in wt if t and t.strip()]).strip()
+            except Exception:
+                winners_text = ""
+
+            # Normalisiere Jackpot (z.B. '€ 10,000,000' -> '10000000') wenn möglich
+            if jackpot_text:
+                cleaned = re.sub(r"[^0-9,\.]+", "", jackpot_text)
+                cleaned = cleaned.replace(',', '')
+                if cleaned.isdigit():
+                    jackpot_text = cleaned
+            # Normalisiere Winners (z.B. '1' oder '1 winner') -> zahl oder original
+            if winners_text:
+                wclean = re.sub(r"[^0-9]+", "", winners_text)
+                if wclean.isdigit():
+                    winners_text = wclean
+
+            results.append([date_text] + main_numbers + euro_numbers + [jackpot_text, winners_text])
         except Exception as e:
             print(f"  Fehler beim Parsen einer Zeile: {e}")
     return results
@@ -89,7 +117,7 @@ def main():
         print(f"Fehler beim Sortieren nach Datum: {e}")
 
     # CSV schreiben
-    header = ["Date", "Main1", "Main2", "Main3", "Main4", "Main5", "Euro1", "Euro2"]
+    header = ["Date", "Main1", "Main2", "Main3", "Main4", "Main5", "Euro1", "Euro2", "Jackpot", "Winners"]
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(header)
